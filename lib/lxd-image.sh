@@ -8,7 +8,7 @@
 # - lxd.sh loaded
 # - var $LXD_PROFILE_NAME
 #
-# 
+#
 
 APT_REMOVE=(apt purge -y)
 
@@ -25,10 +25,10 @@ lxcChangeVarInFile() {
 
     # DO NOT forget to backquote $
     lxcExecBashCommands "$container" <<EOS
-    
+
     # ensure file exists
     test -f $f || touch $f
-    
+
     # ensure we're having the value quoted
     sed -ie "s/${var}=\\\$/${var}=\"\"/" ${f}
 
@@ -47,7 +47,7 @@ EOS
 prepareLxdImageStartContainer() {
     local sourceImage=$1
     local container=$2
-    
+
     if lxdContainerExists "$container" ; then
         warn "LXD Container $container exists. Will *continue* to build image within it"
         status=$(lxdStatus "$container")
@@ -60,7 +60,7 @@ prepareLxdImageStartContainer() {
         # Not sure who the f. sends something on stdin, inside vagrant. https://github.com/lxc/lxd/issues/6228
         lxc launch -p "$LXD_PROFILE_NAME" "$LXD_REMOTE$sourceImage" "$LXD_REMOTE$container" < /dev/null
     fi
-    
+
     lxdWaitIp "$container"
 }
 
@@ -72,7 +72,7 @@ run_script_inside_container() {
     local d
     # wait for systemd to cleanup /tmp/, else it will remove our temp dir
     # SEEME: some other way
-    sleep 5s 
+    sleep 5s
 
     d=$(lxcExecDirect "$container" mktemp -d)
 
@@ -94,21 +94,21 @@ run_script_inside_container() {
 
 # =============================
 # prepareLxdImage__* functions are called to create and launch the base LXD image
-# later one, it copies our own code into the container and runs a different list of 
+# later one, it copies our own code into the container and runs a different list of
 # steps (insideLxdImaage__* - see after this section)
-# 
+#
 prepareLxdImage__01_start_container() {
     ubuntu_version=18.04
 
     ubuntu_image_local="ubuntu-$ubuntu_version"
-    
+
     info "Checking for local ubuntu image $ubuntu_image_local"
     if ! (lxc image info "$LXD_REMOTE$ubuntu_image_local" 2>/dev/null | grep -F -q "Architecture:") ; then
         info "  copying Ubuntu image $ubuntu_version locally"
         # NOTE: if it fails to add the aliases, then https://github.com/lxc/lxd/issues/6419
-        lxc image copy ubuntu:$ubuntu_version --copy-aliases --auto-update --alias $ubuntu_image_local "$LXD_REMOTE" 
+        lxc image copy faster:$ubuntu_version --copy-aliases --auto-update --alias $ubuntu_image_local "$LXD_REMOTE"
     fi
-    
+
 
     local container=$1
 
@@ -126,22 +126,22 @@ lxdPushShellFiles() {
     done
 }
 
-# we do this now, but we actually need to do it also at each container 
+# we do this now, but we actually need to do it also at each container
 # creation (TBD: or start?) since kernel version might have changed.
-# UPDATE: we're bind mounting /boot in the k8s profile to get rid of 
+# UPDATE: we're bind mounting /boot in the k8s profile to get rid of
 # the copy file process.
 #
 # Need to run from outside container.
 #
 lxd_common_kernel_config_file_or_module() {
     local container=$1
-    
+
     f=/boot/config-$(uname -r)
-    
+
     if [ -f "$f" ]; then
     	#info "Copying kernel config file $f"
     	#lxc file push "$f" "$LXD_REMOTE$container/$f"
-    	modprobe configs || true 
+    	modprobe configs || true
     else
     	modprobe configs
     fi
@@ -199,7 +199,7 @@ insideLxdImage__06_install_conntrack() {
 
 
 insideLxdImage__07_add_docker_repo() {
-    info "installing Docker repo key"    
+    info "installing Docker repo key"
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
 
     info "adding Docker repo"
@@ -211,7 +211,7 @@ insideLxdImage__07_add_docker_repo() {
 
 
 insideLxdImage__08_docker_check_variant() {
-    
+
     # verifying that candidate will be from the docker repo
     candidate=$(apt-cache policy docker-ce | grep -F "Candidate" | sed -E -e 's@\s*Candidate\s*:\s*@@')
     if ! apt-cache policy docker-ce | grep -F -A 1 "$candidate" | grep -F download.docker.com/ | grep -F -q download.docker.com/ ; then
@@ -223,9 +223,9 @@ insideLxdImage__08_docker_check_variant() {
 
 
 insideLxdImage__08_add_kubernetes_repo() {
-    info "installing Kubernetes repo key"    
+    info "installing Kubernetes repo key"
     curl -s https://packages.cloud.google.com/apt/doc/apt-key.gpg | apt-key add -
-    
+
     info "adding Kubernetes repo"
     if ! grep -q 'https://apt.kubernetes.io/' /etc/apt/sources.list; then
         add-apt-repository "deb https://apt.kubernetes.io/ kubernetes-xenial main"
@@ -241,8 +241,8 @@ insideLxdImage__08_add_kubernetes_repo() {
 
 insideLxdImage__10_install_docker() {
     info "installing Docker"
-    
-    apt_install docker-ce="${DOCKER_VERSION}*" jq socat 
+
+    apt_install docker-ce="${DOCKER_VERSION}*" jq socat
     sleep 2s # don't recall why :-(
 
     status=$(systemctl status docker)
@@ -258,8 +258,8 @@ insideLxdImage__11_install_kubernetes_packages() {
     [ -z "$use_snap" ] || return 0
 
     info "installing kubeadm, kubectl, kubelet ($K8S_VERSION)"
-    
-    apt_install kubeadm="$K8S_VERSION*" kubelet="$K8S_VERSION*" kubectl="$K8S_VERSION*" 
+
+    apt_install kubeadm="$K8S_VERSION*" kubelet="$K8S_VERSION*" kubectl="$K8S_VERSION*"
 }
 
 
@@ -275,7 +275,7 @@ insideLxdImage__11_install_kubernetes_snap() {
     if apt show kubernetes-cni &>/dev/null; then
         apt_install kubernetes-cni
     fi
-    
+
     for n in kubeadm kubelet kubectl; do
         snap install --channel="$vMajMin/stable" "$n" --classic
     done
@@ -301,7 +301,7 @@ insideLxdImage__11_docker_config() {
 
     # using systemd as cgroup driver: https://kubernetes.io/docs/setup/production-environment/container-runtimes/
     local cfg=/etc/docker/daemon.json
-      
+
     cat >"$cfg" << EOS
 {
   "exec-opts": ["native.cgroupdriver=systemd"],
@@ -312,7 +312,7 @@ insideLxdImage__11_docker_config() {
   "storage-driver": "overlay2"
 }
 EOS
-       
+
     mkdir -p /etc/systemd/system/docker.service.d
 
     systemctl daemon-reload
@@ -332,7 +332,7 @@ insideLxdImage__12_kubernetes_systemd() {
 
     # don't forget to escape $ (\$)
     local d=/etc/systemd/system
-    
+
     local KUBELET_CONF_FILE=
 
     test -d "$d/kubelet.service.d" || mkdir -p "$d/kubelet.service.d"
@@ -369,7 +369,7 @@ EOS
         test -f "$d/kubelet.service"
     fi
 
-    
+
 
     systemctl daemon-reload
     systemctl enable kubelet.service
@@ -379,7 +379,7 @@ EOS
 
 insideLxdImage__15_limit_journal_size() {
     info "Setting up some limits on the journald log size"
-    
+
     local d=/etc/systemd/journald.conf.d/
     [ -d "$d" ] || mkdir -p "$d"
     cat > "$d/limits.conf" <<EOS
@@ -432,9 +432,9 @@ prepareLxdImage_worker__30_inside_script_run() {
 
 insideLxdImage_worker__20_pull_kubeadm_used_images() {
     info "pulling images used by kubeadm to speed up initialisation"
-    
+
     # worker node does not need all of them, so we get only a few.
-    kubeadm --kubernetes-version "$K8S_VERSION" config images list 2>/dev/null | grep -Pv 'apiserver|controller-manager|scheduler|etcd|coredns' | xargs -r -n 1  docker pull        
+    kubeadm --kubernetes-version "$K8S_VERSION" config images list 2>/dev/null | grep -Pv 'apiserver|controller-manager|scheduler|etcd|coredns' | xargs -r -n 1  docker pull
 }
 
 
@@ -466,11 +466,11 @@ insideLxdImage_master__10_pull_kubeadm_used_images() {
 }
 
 
-# ==== cleanup     
+# ==== cleanup
 
 prepareLxdImageCleanup__02_remove_some_packages() {
     local container=$1
-    
+
     info "[$container]: Removing unnecessary packages from container $container"
 
     lxcExec "$container" "${APT_REMOVE[@]}" unattended-upgrades mlocate
@@ -479,7 +479,7 @@ prepareLxdImageCleanup__02_remove_some_packages() {
 
 prepareLxdImageCleanup__04_cleanup() {
     local container=$1
-    
+
     # cleaning up in the image:
     info "[$container]: Cleaning up space in container $container..."
 
@@ -499,12 +499,12 @@ prepareLxdImageCleanup__04_cleanup() {
 
 prepareLxdImageCleanup__06_cleanup_logs() {
     local container=$1
-    
+
     info "[$container]: Cleaning up logs from container $container"
-    
+
     lxcExecBash "$container" "rm -rf /var/log/*.log"
     lxcExecBash "$container" "journalctl --flush; journalctl --rotate; journalctl -m --vacuum-time=1s"
-}	
+}
 
 
 # =======================================
@@ -514,7 +514,7 @@ publishContainerAsImage() {
     info "Publishing locally the k8s container '$container' as image '$container'"
     lxc stop "$LXD_REMOTE$container"
     lxc publish "$LXD_REMOTE$container" "$LXD_REMOTE" --alias "$container" --compression none
-    
+
     lxc delete "$LXD_REMOTE$container"
 }
 
@@ -530,7 +530,7 @@ buildLxdCommonImage() {
     	info "Image '$imageName' already present, not building"
         return 0
     fi
-    
+
     runFunctions '^prepareLxdImage__' "$container"
 
     publishContainerAsImage "$container"
@@ -539,12 +539,12 @@ buildLxdCommonImage() {
 
 buildLxdOneImage() {
     local type=$1 # master or worker
-    
+
     buildLxdCommonImage
-    
+
     local container
     container=$(makeValidHostname "${IMAGE_NAME_BASE}-${K8S_VERSION}-${type}")
-    
+
     runFunctions "^prepareLxdImage_${type}__" "$container"
     runFunctions '^prepareLxdImageCleanup__' "$container"
 
@@ -562,23 +562,23 @@ buildLxdWorkerImage() {
 }
 
 
- 
+
 prepareLxdImages() {
     ensureLxdIsInstalled
-    
+
     # we want 2 type of images: one for the master and one for the worker.
     # when building them, we're going to have, until a certain point, some common
     # setup
-    
-    
+
+
     local master_image
     master_image=$(makeValidHostname "${IMAGE_NAME_BASE}-${K8S_VERSION}-master")
-    
+
     if lxcCheckImageExists "$master_image" ; then
         #TODO: version check
         info "Image '$master_image' already present, not building"
     else
-        buildLxdMasterImage        
+        buildLxdMasterImage
     fi
 
     local worker_image
@@ -588,13 +588,13 @@ prepareLxdImages() {
         #TODO: version check
         info "Image '$worker_image' already present, not building"
     else
-        buildLxdWorkerImage        
+        buildLxdWorkerImage
     fi
-    
+
     # delete the common image now
     local base_image
     base_image=$(makeValidHostname "${IMAGE_NAME_BASE}-${K8S_VERSION}")
-    if lxc image show "$LXD_REMOTE$base_image" 2>/dev/null | grep -F -q 'public:' ; then 
+    if lxc image show "$LXD_REMOTE$base_image" 2>/dev/null | grep -F -q 'public:' ; then
         lxc image delete  "$LXD_REMOTE$base_image"
     fi
 }

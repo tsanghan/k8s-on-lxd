@@ -86,7 +86,7 @@ addServiceProxy() {
         localPort=$(lxc query "$LXD_REMOTE/1.0/containers/${CLUSTER_NAME}-master" | jq -r ".devices | to_entries | .[] | select( .key == \"proxy-svc-$ns-$serviceName\") | .value.listen | ltrimstr(\"tcp:0.0.0.0:\") ")
 
         info "LXD proxy device already present."
-    else 
+    else
         info "LXD proxy device already present, changing service IP"
         localPort=$(lxc query "$LXD_REMOTE/1.0/containers/${CLUSTER_NAME}-master" | jq -r ".devices | to_entries | .[] | select( .key == \"proxy-svc-$ns-$serviceName\") | .value.listen | ltrimstr(\"tcp:0.0.0.0:\") ")
         lxc config device set "$LXD_REMOTE${CLUSTER_NAME}-master" "proxy-svc-$ns-$serviceName" connect="tcp:$ip:$port"
@@ -173,7 +173,7 @@ launchK8SContainer() {
     local masterContainer="$3"
 
     ensureLxdImageExists "$image_name"
-    
+
     if lxdContainerExists "$container"  ; then
         err "LXD Container $container exists. Please stop and delete it first"
         info "  lxc stop $container; lxc delete $container"
@@ -218,7 +218,7 @@ checkResources() {
     	warn "Kubernetes node might not start due to disk pressure (not enough free space, 20%) on your host '/' filesystem"
         warn "  Now you're using $usedDisk%"
         sleep 5s
-    fi 
+    fi
 }
 
 
@@ -231,9 +231,9 @@ waitNodeReady() {
     local nodeName=$2
 
     info "${EMOTICON_WAITING}Waiting for kubernetes node to be declared as ready"
-    
+
     lxcExecBashCommands "$container" <<EOS
-source /usr/local/lib/shell/general.sh    
+source /usr/local/lib/shell/general.sh
 
 export KUBECONFIG=/etc/kubernetes/admin.conf
 for i in \$(seq 1 60) ; do
@@ -281,7 +281,7 @@ disableCniNetorking() {
     lxcExec "$container" systemctl daemon-reload
     lxcExec "$container" systemctl restart kubelet
 }
-	
+
 
 installCniNetwork() {
     local container=$1
@@ -295,7 +295,8 @@ installCniNetwork() {
     else
         revision="master"
     fi
-    lxcExecBash "$container" "export KUBECONFIG=/etc/kubernetes/admin.conf ; kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/$revision/Documentation/kube-flannel.yml"
+    # lxcExecBash "$container" "export KUBECONFIG=/etc/kubernetes/admin.conf ; kubectl apply -f https://raw.githubusercontent.com/coreos/flannel/$revision/Documentation/kube-flannel.yml"
+    lxcExecBash "$container" "export KUBECONFIG=/etc/kubernetes/admin.conf ; kubectl apply -f https://docs.projectcalico.org/v3.8/manifests/calico.yaml"
 }
 
 
@@ -304,7 +305,7 @@ setupCniNetwork() {
     mode=$2 # master or worker
 
     test "$mode" == "worker" && return 0
-    
+
     # for multinode, we need a cni plugin.
     # if you're going to use a single node, you can let it call 'disableCniNetworking'
 
@@ -324,7 +325,7 @@ kubeletChangeAuthMode() {
     var=KUBELET_EXTRA_ARGS
 
     info "  changing authorization mode for Kubelet"
-    lxcChangeVarInFile "$container" $f $var authorization-mode Webhook    
+    lxcChangeVarInFile "$container" $f $var authorization-mode Webhook
     lxcChangeVarInFile "$container" $f $var authentication-token-webhook true
 
     lxcExec "$container" systemctl restart kubelet
@@ -336,4 +337,3 @@ enjoyMsg() {
     info "${EMOTICON_THUMBS_UP}Feel free to report bugs, feature requests and so on, at https://github.com/cr1st1p/k8s-on-lxd/issues"
 }
 
-    
